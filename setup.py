@@ -28,7 +28,7 @@ def read_requirements(filename):
 
 
 setup(
-    name='scrapy-redis-expiredupefilter',
+    name='xb-scrapy-redis-expiredupefilter',
     version=read_file('VERSION'),
     description="Redis-based components for Scrapy.",
     author="July",
