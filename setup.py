@@ -28,11 +28,10 @@ def read_requirements(filename):
 
 
 setup(
-    name='scrapy-redis-expiretime',
+    name='scrapy-redis-expiredupefilter',
     version=read_file('VERSION'),
     description="Redis-based components for Scrapy.",
-    long_description=read_rst('README.rst') + '\n\n' + read_rst('HISTORY.rst'),
-    author="Rolando Espinoza",
+    author="July",
     author_email='',
     url='https://github.com/hellojuly/scrapy-redis',
     packages=list(find_packages('src')),
@@ -40,17 +39,9 @@ setup(
     setup_requires=read_requirements('requirements-setup.txt'),
     install_requires=read_requirements('requirements-install.txt'),
     include_package_data=True,
-    license="MIT",
-    keywords='scrapy-redis',
     classifiers=[
-        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
-        'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
     ],
 )
