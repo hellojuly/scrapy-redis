@@ -21,7 +21,7 @@ class RFPDupeFilter(BaseDupeFilter):
 
     logger = logger
 
-    def __init__(self, server, key, debug=False):
+    def __init__(self, server, key, expire_time, debug=False):
         """Initialize the duplicates filter.
 
         Parameters
@@ -32,12 +32,15 @@ class RFPDupeFilter(BaseDupeFilter):
             Redis key Where to store fingerprints.
         debug : bool, optional
             Whether to log filtered requests.
+        expire_time: int
+            fingerprints expiration time
 
         """
         self.server = server
         self.key = key
         self.debug = debug
         self.logdupes = True
+        self.expire_time = expire_time
 
     @classmethod
     def from_settings(cls, settings):
@@ -65,7 +68,8 @@ class RFPDupeFilter(BaseDupeFilter):
         # TODO: Use SCRAPY_JOB env as default and fallback to timestamp.
         key = defaults.DUPEFILTER_KEY % {'timestamp': int(time.time())}
         debug = settings.getbool('DUPEFILTER_DEBUG')
-        return cls(server, key=key, debug=debug)
+        expire_time = settings.get('SCHEDULER_DUPEFILTER_EXPIRE_TIME', defaults.SCHEDULER_DUPEFILTER_EXPIRE_TIME)
+        return cls(server, key=key, expire_time=expire_time, debug=debug)
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -96,9 +100,26 @@ class RFPDupeFilter(BaseDupeFilter):
 
         """
         fp = self.request_fingerprint(request)
-        # This returns the number of values added, zero if already exists.
-        added = self.server.sadd(self.key, fp)
-        return added == 0
+        # Use the specified expiration time when the expiration time is specified in the request.meta,
+        # otherwise, use the expiration time set in settings.
+        expire_time = int(request.meta.get('request_expire_time', self.expire_time))
+
+        # Update the fingerprint information in the zset when the fingerprint does not
+        # exist in the zset, or the fingerprint has expired.
+        not_exist_in_zset = self.server.zrank(self.key, fp) is None
+        fp_expire_time = self.server.zincrby(self.key, 0, fp)
+        if not_exist_in_zset or (int(fp_expire_time) < int(time.time())):
+            self.server.zadd(self.key, {fp: int(time.time()) + expire_time})
+            if self.debug:
+                if not_exist_in_zset:
+                    self.logger.info("A new fingerprint is added to the collection.")
+                else:
+                    self.logger.info("The expiration time of a fingerprint has been updated.")
+            return False
+        else:
+            if self.debug:
+                self.logger.info("The fingerprint has not expired, skip this request.")
+            return True
 
     def request_fingerprint(self, request):
         """Returns a fingerprint for a given request.
@@ -121,7 +142,8 @@ class RFPDupeFilter(BaseDupeFilter):
         dupefilter_key = settings.get("SCHEDULER_DUPEFILTER_KEY", defaults.SCHEDULER_DUPEFILTER_KEY)
         key = dupefilter_key % {'spider': spider.name}
         debug = settings.getbool('DUPEFILTER_DEBUG')
-        return cls(server, key=key, debug=debug)
+        expire_time = settings.get('SCHEDULER_DUPEFILTER_EXPIRE_TIME', defaults.SCHEDULER_DUPEFILTER_EXPIRE_TIME)
+        return cls(server, key=key, expire_time=expire_time, debug=debug)
 
     def close(self, reason=''):
         """Delete data on close. Called by Scrapy's scheduler.
